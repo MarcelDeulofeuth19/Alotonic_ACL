@@ -101,3 +101,4 @@ La instancia es PROD en vivo. Orden estricto:
   `alotonic_default` (mismo patrón que PadLock).
 - Contenedor sin privilegios (usuario `acl`), imagen slim sin toolchain.
 - El detalle de errores del driver queda en logs; el consumidor recibe un 503 genérico.
+# Alotonic_ACL
