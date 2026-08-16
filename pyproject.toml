@@ -1,0 +1,21 @@
+[project]
+name = "alotonic-acl"
+version = "1.0.0"
+description = "ACL (Anti-Corruption Layer) de la base legacy MySQL alocreditprod: API única de acceso para AloTonic."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=app --cov-report=term-missing --cov-fail-under=96"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+# El gate del proyecto es 96%: si baja, pytest falla (--cov-fail-under).
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]

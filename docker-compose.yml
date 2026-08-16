@@ -1,0 +1,26 @@
+# NO desplegar sin seguir el runbook (README). La imagen se buildea explícitamente
+# (docker compose build) en ventana controlada: esta instancia es PROD en vivo.
+services:
+  alotonic_acl:
+    build: .
+    image: alotonic-acl:latest
+    pull_policy: never
+    container_name: alotonic_acl
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      # Loopback: el servicio NO se expone a la red. AloTonic lo alcanza por la red
+      # docker (ACL_API_URL=http://alotonic_acl:8090), igual que hace con PadLock.
+      - "127.0.0.1:8090:8090"
+    networks:
+      - alotonic_default
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  alotonic_default:
+    external: true
+    name: alotonic_default
