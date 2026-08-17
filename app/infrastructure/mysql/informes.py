@@ -22,6 +22,11 @@ class RepositorioInformesMysql:
         with conexion_legacy(self._settings,
                              read_timeout=self._settings.mysql_read_timeout_informes) as conn:
             cur = conn.cursor(pymysql.cursors.DictCursor)
+            # La UNION interna de view_general_contracts hereda la collation de la
+            # SESION; con el default de pymysql (utf8mb4_general_ci) revienta con
+            # 1271 "Illegal mix of collations" — asi esta ROTA hoy para el cliente
+            # original. unicode_ci alinea todas las ramas (verificado en sombra).
+            cur.execute("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci")
             cur.execute(
                 """
                 SELECT imei, contract_number, customer_dni, full_name, customer_phone, status_name, product

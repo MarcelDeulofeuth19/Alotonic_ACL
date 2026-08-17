@@ -398,7 +398,9 @@ def test_contratos_por_lock_system_devuelve_dicts_tal_cual(monkeypatch):
 
     resultado = repo.contratos_por_lock_system("KNOX GUARD")
 
-    sql, params = conn.cursor_falso.ejecutadas[0]
+    set_names, _ = conn.cursor_falso.ejecutadas[0]
+    assert set_names == "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+    sql, params = conn.cursor_falso.ejecutadas[1]
     assert "FROM view_general_contracts" in sql
     assert "lock_system COLLATE utf8mb4_unicode_ci = %s" in sql
     assert "status_name COLLATE utf8mb4_unicode_ci IN %s" in sql
