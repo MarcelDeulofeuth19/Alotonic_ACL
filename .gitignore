@@ -10,3 +10,7 @@ reports/
 *.egg-info/
 dist/
 build/
+
+# Entorno PRE (secretos y datos propios de pre; plantilla: .env.example)
+.env.pre
+data-pre/

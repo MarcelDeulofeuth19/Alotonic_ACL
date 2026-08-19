@@ -1,0 +1,62 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# ENTORNO PRE del servicio ACL — convive con PROD en la MISMA instancia
+# ═══════════════════════════════════════════════════════════════════════════
+# Lo orquesta /opt/alotonic/pre.sh (crea la red y ordena el arranque). Manual:
+#
+#   docker compose -f docker-compose.pre.yml up -d
+#
+# AISLAMIENTO frente al ACL de PROD:
+#   1. Proyecto   : alotonic-acl-pre     (prod: alotonic-acl implícito)
+#   2. Contenedor : alotonic_acl_pre     (prod: alotonic_acl)
+#   3. Imagen     : alotonic-acl:pre     (prod: :latest — un build de pre NUNCA
+#                   debe poder reemplazar la imagen que sirve prod)
+#   4. Puerto     : 127.0.0.1:8190       (prod: 127.0.0.1:8090)
+#   5. Red        : alotonic_pre         (prod: alotonic_default)
+#
+# CREDENCIALES DE alocreditprod (MySQL legacy)
+# El ACL es SOLO-LECTURA por diseño (no tiene un solo INSERT/UPDATE), así que
+# apuntar pre a la misma BD legacy es la forma de que pre devuelva datos reales.
+# Aun así el .env.pre NACE VACÍO de credenciales y hay que ponerlas a mano o con
+# `./pre.sh init --inherit-legacy-reads`: heredar secretos de prod es una
+# decisión del dueño, no un efecto colateral de levantar un entorno.
+# Sin credenciales el servicio arranca y /health responde; las consultas fallan
+# con error de conexión — que es exactamente el fallo que se quiere ver, en vez
+# de un pre que silenciosamente lee otra base.
+#
+# RECURSOS: instancia PROD en vivo → mem_limit 256m y cpu_shares 256 (un cuarto
+# del peso por defecto) para que bajo contención el kernel priorice a prod.
+# ═══════════════════════════════════════════════════════════════════════════
+name: alotonic-acl-pre
+
+services:
+  alotonic_acl_pre:
+    build: .
+    image: alotonic-acl:pre
+    pull_policy: never
+    container_name: alotonic_acl_pre
+    env_file: .env.pre
+    restart: unless-stopped
+    ports:
+      # Loopback: el servicio no se expone a la red. El AloTonic de pre lo
+      # alcanza por la red docker (ACL_API_URL=http://alotonic_acl_pre:8090).
+      - "127.0.0.1:8190:8090"
+    networks:
+      - alotonic_pre
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    mem_limit: 256m
+    cpu_shares: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  alotonic_pre:
+    external: true
+    name: alotonic_pre
