@@ -18,7 +18,7 @@ titulares, candados, prórrogas de crédito, referencias por TAC— pasa por est
 una sola conexión MySQL directa, y ningún consumidor futuro tendrá que volver a aprender las trampas
 del legacy: están encapsuladas aquí, una vez, con su propia suite.
 
-[Por qué existe](#1-por-qué-existe) · [Arquitectura](#2-arquitectura-hexagonal) · [Trampas del legacy](#3-las-trampas-del-legacy) · [Endpoints](#4-superficie-http) · [Tipos](#5-fidelidad-de-tipos) · [Consumidor](#6-lado-alotonic-el-interruptor) · [Runbook](#7-runbook-de-despliegue-y-cutover) · [Seguridad](#8-seguridad) · [Calidad](#9-calidad)
+[Por qué existe](#1-por-qué-existe) · [Arquitectura](#2-arquitectura-hexagonal) · [Trampas del legacy](#3-las-trampas-del-legacy) · [Endpoints](#4-superficie-http) · [Tipos](#5-fidelidad-de-tipos) · [Consumidor](#6-lado-alotonic-el-interruptor) · [Runbook](#7-runbook-de-despliegue-y-cutover) · [Entorno pre](#71-el-entorno-pre-misma-instancia) · [Seguridad](#8-seguridad) · [Calidad](#9-calidad)
 
 </div>
 
@@ -288,6 +288,57 @@ graph LR
    tocar código ni desplegar nada.
 8. **Fase final** (tras días estables) — retirar de AloTonic el camino MySQL directo (los bloques `else`
    de la fachada) y la dependencia `pymysql` de esos módulos.
+
+### 7.1. El entorno pre (misma instancia)
+
+El paso 4 (sombra) y cualquier prueba de contrato se hacen contra el **entorno pre**, que convive con
+producción en la misma EC2. Se levanta entero —AloTonic, este ACL y los seis componentes— con un solo
+comando, desde el repo de AloTonic:
+
+```bash
+cd /opt/alotonic
+./pre.sh init          # solo la primera vez: genera los .env.pre con secretos propios de pre
+./pre.sh up            # levanta todo; este servicio queda en http://127.0.0.1:8190/health
+./pre.sh logs acl      # logs del ACL de pre
+./pre.sh down          # baja solo pre
+```
+
+|  | producción | pre |
+|---|---|---|
+| Contenedor | `alotonic_acl` | `alotonic_acl_pre` |
+| Imagen | `alotonic-acl:latest` | `alotonic-acl:pre` |
+| Puerto publicado | `127.0.0.1:8090` | `127.0.0.1:8190` |
+| Puerto interno | `8090` | `8090` — no cambia, lo fija el `CMD` de la imagen |
+| Red docker | `alotonic_default` | `alotonic_pre` |
+| `ACL_API_URL` en AloTonic | `http://alotonic_acl:8090` | `http://alotonic_acl_pre:8090` |
+
+El compose de pre es **`docker-compose.pre.yml`**, en este mismo repo, con imagen `:pre` para que un
+build de pre no pueda reemplazar la que sirve producción, y en la red `alotonic_pre`, desde la que no se
+resuelve ningún contenedor de producción.
+
+**Las credenciales de `alocreditprod` nacen VACÍAS en `.env.pre`**, aunque este servicio sea
+solo-lectura: heredar secretos de producción es una decisión del dueño, no un efecto colateral de
+levantar un entorno. Sin ellas el servicio arranca y `/health` responde; las consultas fallan con error
+de conexión, que es exactamente el fallo que se quiere ver, en vez de un pre leyendo otra base en
+silencio. Para habilitarlas:
+
+```bash
+cd /opt/alotonic && ./pre.sh init --inherit-legacy-reads && ./pre.sh restart acl
+```
+
+Runbook completo del entorno: **`/opt/alotonic/docs/entorno-pre.md`**.
+
+### 7.2. Desplegar el ACL junto al resto
+
+Para desplegar solo este servicio, los pasos 2-3 de arriba. Para desplegar **toda la constelación** en
+orden (ACL → los 6 componentes → AloTonic), con *healthcheck* entre pasos y abortando si uno falla:
+
+```bash
+cd /opt/alotonic && ./deploy.sh --build-all
+```
+
+El ACL va **primero** a propósito: AloTonic lo consulta para resolver candados e informes, así que debe
+estar actualizado antes de que entre en vivo el código nuevo que lo llama.
 
 ---
 
