@@ -5,3 +5,5 @@ uvicorn[standard]==0.30.1
 pydantic==2.7.4
 pydantic-settings==2.3.4
 pymysql==1.1.1
+# Zonas horarias IANA: domain/tiempo convierte todo a America/Bogota.
+tzdata==2026.3
